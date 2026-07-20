@@ -6,7 +6,19 @@
 /postgres_data/
 /wazuh_data/
 /wazuh_logs/
+/wazuh_etc/
 /vpn_data/
+/shared_logs/
+
+# VPN and Security Certificates (CRITICAL: Do not commit private keys)
+/vpn_config/
+*.ovpn
+radius_config/certs/*.pem
+radius_config/certs/*.key
+radius_config/certs/*.crt
+
+# Logs and local test files
+*.log
 
 # Python caches and artifacts
 __pycache__/
