@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db_postgres:
     image: postgres:15
@@ -63,7 +61,7 @@ services:
       - internal_net
 
   wazuh_manager:
-    image: wazuh/wazuh:4.7.4
+    image: wazuh/wazuh-manager:4.14.6
     container_name: wazuh_manager
     restart: unless-stopped
     ports:
@@ -78,7 +76,7 @@ services:
       - internal_net
 
   wazuh_agent_dmz:
-    image: wazuh/wazuh-agent:4.7.4
+    image: wazuh/wazuh-agent:4.14.6
     container_name: wazuh_agent_dmz
     restart: unless-stopped
     environment:
