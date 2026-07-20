@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  db_postgres:
+    image: postgres:15
+    container_name: db_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nac_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nac_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nac_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal_net
+
+  cache_redis:
+    image: redis:7-alpine
+    container_name: cache_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secure_password}
+    networks:
+      - internal_net
+
+  vpn_gateway:
+    image: kylemanna/openvpn
+    container_name: vpn_gateway
+    restart: unless-stopped
+    ports:
+      - "1194:1194/udp"
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - vpn_data:/etc/openvpn
+      - shared_logs:/var/log/shared
+    networks:
+      - dmz_net
+      - internal_net
+
+  radius_server:
+    image: freeradius/freeradius-server:latest
+    container_name: radius_server
+    restart: unless-stopped
+    depends_on:
+      - db_postgres
+    volumes:
+      - ./radius_config:/etc/freeradius
+    networks:
+      - internal_net
+
+  policy_engine:
+    build:
+      context: ./policy_engine
+    container_name: policy_engine
+    restart: unless-stopped
+    depends_on:
+      - db_postgres
+      - cache_redis
+    volumes:
+      - shared_logs:/var/log/shared
+    networks:
+      - internal_net
+
+  wazuh_manager:
+    image: wazuh/wazuh:4.7.4
+    container_name: wazuh_manager
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "5601:5601"
+    volumes:
+      - wazuh_data:/var/ossec/data
+      - wazuh_etc:/var/ossec/etc
+      - wazuh_logs:/var/ossec/logs
+      - ./wazuh_custom_rules:/var/ossec/etc/rules
+    networks:
+      - internal_net
+
+  wazuh_agent_dmz:
+    image: wazuh/wazuh-agent:4.7.4
+    container_name: wazuh_agent_dmz
+    restart: unless-stopped
+    environment:
+      - WAZUH_MANAGER=wazuh_manager
+      - WAZUH_ENROLLMENT_SERVER=wazuh_manager
+    volumes:
+      - shared_logs:/var/log/shared
+    networks:
+      - dmz_net
+      - internal_net
+
+  dummy_web:
+    image: nginx:latest
+    container_name: dummy_web
+    restart: unless-stopped
+    networks:
+      - dmz_net
+
+networks:
+  dmz_net:
+    name: dmz_net
+    driver: bridge
+  internal_net:
+    name: internal_net
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: postgres_data
+  vpn_data:
+    name: vpn_data
+  wazuh_data:
+    name: wazuh_data
+  wazuh_etc:
+    name: wazuh_etc
+  wazuh_logs:
+    name: wazuh_logs
+  shared_logs:
+    name: shared_logs

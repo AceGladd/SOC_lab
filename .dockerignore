@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+radius_config/
+vpn_config/
+__pycache__/
+*.pyc
+postgres_data/
+wazuh_data/
+wazuh_logs/
+wazuh_etc/
