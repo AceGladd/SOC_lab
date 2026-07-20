@@ -4,7 +4,7 @@
 
 Aşağıda bulunan mimari şemada görüldüğü üzere bu proje, Docker Compose kullanılarak inşa edilmiş, bölümlendirilmiş (Segmented) bir Ağ Erişim Kontrolü (NAC) ve Güvenlik Operasyon Merkezi (SOC) laboratuvar ortamıdır.
 
-<img src="system architecture diagram.png" alt="Sistem Mimarisi" width="500">
+<img src="system architecture diagram.png" alt="Sistem Mimarisi" width="700">
 
 Altyapımız yapısal olarak iki yalıtılmış ağdan (DMZ ve İç Ağ) ve iki temel akıştan oluşmaktadır:
 
