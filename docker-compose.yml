@@ -45,6 +45,7 @@ services:
       - db_postgres
     volumes:
       - ./radius_config:/etc/freeradius
+      - shared_logs:/var/log/freeradius
     networks:
       - internal_net
 
