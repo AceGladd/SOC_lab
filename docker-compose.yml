@@ -45,6 +45,7 @@ services:
       - ./radius_config:/etc/freeradius
       - shared_logs:/var/log/freeradius
     networks:
+      - dmz_net
       - internal_net
 
   policy_engine:
@@ -52,6 +53,7 @@ services:
       context: ./policy_engine
     container_name: policy_engine
     restart: unless-stopped
+    env_file: .env
     depends_on:
       - db_postgres
       - cache_redis
@@ -89,11 +91,15 @@ services:
       - internal_net
 
   dummy_web:
-    image: nginx:latest
+    build:
+      context: ./dummy_web
     container_name: dummy_web
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     networks:
       - dmz_net
+      - internal_net
 
 networks:
   dmz_net:
