@@ -63,7 +63,10 @@ Servislerle etkileşime geçmek, arayüzlerine ulaşmak ve hata ayıklamak için
 
 Aşağıdaki liste, laboratuvarın geri kalan kısımları için (Phase 2 & Phase 3 Red/Blue Team senaryoları dahil) ekibin görev dağılımını içermektedir:
 
-- **Yağız Eren Kotan**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu ve dinamik kural motoru (rule engine) mantığının kurgulanması.
-- **Ömer Faruk Sevim**: FreeRADIUS (EAP-TLS) yapılandırması, istemci (client) sertifikalarının yönetimi ve Policy Engine ile `rlm_rest` modülü üzerinden haberleşmenin sağlanması.
-- **Devran Baştemur**: OpenVPN gateway yapılandırması VE Phase 2 (Red Team) Senaryolarının yürütülmesi (geçersiz sertifikaların test edilmesi, Python/radclient ile brute-force saldırıları ve DMZ'den İç Ağa network segmentasyonunun test edilmesi).
 - **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, Redis Rate-Limiting mantığının entegrasyonu, Phase 3 Active-Response (iptables playbook) senaryolarının uygulanması, günlük raporlamalar ve projenin nihai mimari dokümantasyonunun hazırlanması.
+
+- **Yağız Eren Kotan**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu ve dinamik kural motoru (rule engine) mantığının kurgulanması.
+
+- **Devran Baştemur**: OpenVPN gateway yapılandırması VE Phase 2 (Red Team) Senaryolarının yürütülmesi (geçersiz sertifikaların test edilmesi, Python/radclient ile brute-force saldırıları ve DMZ'den İç Ağa network segmentasyonunun test edilmesi).
+
+- **Ömer Faruk Sevim**: FreeRADIUS (EAP-TLS) yapılandırması, istemci (client) sertifikalarının yönetimi ve Policy Engine ile `rlm_rest` modülü üzerinden haberleşmenin sağlanması.
