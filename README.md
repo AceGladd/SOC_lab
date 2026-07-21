@@ -59,14 +59,14 @@ Servislerle etkileşime geçmek, arayüzlerine ulaşmak ve hata ayıklamak için
   docker logs -f <container_name>
   ```
 
-## Sonraki Adımlar ve Görev Dağılımı
+### 👥 Görev Dağılımı ve Takım Rolleri
 
 Aşağıdaki liste, laboratuvarın geri kalan kısımları için (Phase 2 & Phase 3 Red/Blue Team senaryoları dahil) ekibin görev dağılımını içermektedir:
 
-- **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, Redis Rate-Limiting mantığının entegrasyonu, Phase 3 Active-Response (iptables playbook) senaryolarının uygulanması.
+- **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, logların SIEM'e yönlendirilip projede istenen özel alarm kurallarının (*"Kritik Ağ İhlali"* vb.) oluşturulması, Redis Rate-Limiting mantığının entegrasyonu ve Phase 3 Active-Response (`iptables` playbook) senaryolarının uygulanması.
 
-- **Yağız Eren Kotan**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu ve dinamik kural motoru (rule engine) mantığının kurgulanması.
+- **Yağız Eren Kotan**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu, dinamik kural motoru (rule engine) mantığının kurgulanarak Radius'a uygun VLAN/erişim profilinin dönülmesi ve bu kararların veritabanına loglanması.
 
-- **Devran Baştemur**: OpenVPN gateway yapılandırması VE Phase 2 (Red Team) Senaryolarının yürütülmesi (geçersiz sertifikaların test edilmesi, Python/radclient ile brute-force saldırıları ve DMZ'den İç Ağa network segmentasyonunun test edilmesi).
+- **Devran Baştemur**: OpenVPN gateway yapılandırması **VE** Phase 2 (Red Team) senaryolarının yürütülmesi (geçersiz sertifikaların test edilmesi, Python/radclient ile brute-force saldırıları ve DMZ'den İç Ağa network segmentasyonunun test edilmesi).
 
-- **Ömer Faruk Sevim**: FreeRADIUS (EAP-TLS) yapılandırması, istemci (client) sertifikalarının yönetimi ve Policy Engine ile `rlm_rest` modülü üzerinden haberleşmenin sağlanması.
+- **Ömer Faruk Sevim**: FreeRADIUS (EAP-TLS) yapılandırması, istemci (client) sertifikalarının yönetimi, Policy Engine ile `rlm_rest` modülü üzerinden haberleşmenin sağlanıp dönen VLAN/erişim profili bilgisinin VPN katmanına iletilmesi.
