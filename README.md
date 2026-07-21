@@ -71,8 +71,8 @@ Aşağıdaki liste, laboratuvarın geri kalan kısımları için (Phase 2 & Phas
 
 - **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, logların SIEM'e yönlendirilip projede istenen özel alarm kurallarının (*"Kritik Ağ İhlali"* vb.) oluşturulması, Redis Rate-Limiting mantığının entegrasyonu, Phase 3 Active-Response (`iptables` playbook) senaryolarının uygulanması.
 
-- **Yağız Eren Kotan**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu, dinamik kural motoru (rule engine) mantığının kurgulanarak Radius'a uygun VLAN/erişim profilinin dönülmesi ve bu kararların veritabanına loglanması.
+- **Yağız Eren Kotan** OpenVPN gateway yapılandırması **VE** Phase 2 (Red Team) senaryolarının yürütülmesi (geçersiz sertifikaların test edilmesi, Python/radclient ile brute-force saldırıları ve DMZ'den İç Ağa network segmentasyonunun test edilmesi).
 
-- **Devran Baştemur**: OpenVPN gateway yapılandırması **VE** Phase 2 (Red Team) senaryolarının yürütülmesi (geçersiz sertifikaların test edilmesi, Python/radclient ile brute-force saldırıları ve DMZ'den İç Ağa network segmentasyonunun test edilmesi).
+- **Devran Baştemur**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu, dinamik kural motoru (rule engine) mantığının kurgulanarak Radius'a uygun VLAN/erişim profilinin dönülmesi ve bu kararların veritabanına loglanması.
 
 - **Ömer Faruk Sevim**: FreeRADIUS (EAP-TLS) yapılandırması, istemci (client) sertifikalarının yönetimi, Policy Engine ile `rlm_rest` modülü üzerinden haberleşmenin sağlanıp dönen VLAN/erişim profili bilgisinin VPN katmanına iletilmesi.
