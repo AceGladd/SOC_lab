@@ -1,3 +1,22 @@
 <group name="local,custom,">
+  <rule id="100001" level="0">
+    <decoded_as>json</decoded_as>
+  </rule>
 
+  <!-- Policy Engine Rate-Limit -->
+  <rule id="100002" level="3">
+    <if_sid>100001</if_sid>
+    <field name="app">policy_engine</field>
+    <field name="message">SECURITY ALERT: Brute-Force</field>
+    <options>no_log</options>
+    <description>Policy Engine Rate-Limit</description>
+  </rule>
+
+  <!-- 60 saniyede 4 tetikleme sonucu yüksek seviye uyarı -->
+  <rule id="100003" level="10" frequency="4" timeframe="60">
+    <if_matched_sid>100002</if_matched_sid>
+    <same_source_ip />
+    <description>Policy Engine, Brute-Force saldırısı</description>
+    <group>authentication_failed,brute_force</group>
+  </rule>
 </group>

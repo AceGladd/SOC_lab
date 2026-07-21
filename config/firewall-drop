@@ -1,0 +1,10 @@
+#!/bin/bash
+# Wazuh Active Response script to simulate Ansible iptables playbook
+
+read INPUT_JSON
+IP=$(echo $INPUT_JSON | grep -oP '"srcip":"\K[^"]+')
+
+if [ -n "$IP" ]; then
+    echo "$(date) - Executing Ansible Playbook to DROP IP $IP on vpn_gateway..." >> /var/log/shared/active_response_playbook.log
+    echo "iptables -A INPUT -s $IP -j DROP" >> /var/log/shared/active_response_playbook.log
+fi
