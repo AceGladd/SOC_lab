@@ -2,6 +2,8 @@
 .env
 .env.*
 
+.vs/
+
 # Docker volumes and data (do not commit state)
 /postgres_data/
 /wazuh_data/
