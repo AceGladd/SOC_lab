@@ -69,7 +69,7 @@ Servislerle etkileşime geçmek, arayüzlerine ulaşmak ve hata ayıklamak için
 
 Aşağıdaki liste, laboratuvarın geri kalan kısımları için (Phase 2 & Phase 3 Red/Blue Team senaryoları dahil) ekibin görev dağılımını içermektedir:
 
-- **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, logların SIEM'e yönlendirilip projede istenen özel alarm kurallarının (*"Kritik Ağ İhlali"* vb.) oluşturulması, Redis Rate-Limiting mantığının entegrasyonu, Phase 3 Active-Response (`iptables` playbook) senaryolarının uygulanması ve projenin nihai mimari dokümantasyonunun hazırlanması.
+- **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, logların SIEM'e yönlendirilip projede istenen özel alarm kurallarının (*"Kritik Ağ İhlali"* vb.) oluşturulması, Redis Rate-Limiting mantığının entegrasyonu, Phase 3 Active-Response (`iptables` playbook) senaryolarının uygulanması.
 
 - **Yağız Eren Kotan**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu, dinamik kural motoru (rule engine) mantığının kurgulanarak Radius'a uygun VLAN/erişim profilinin dönülmesi ve bu kararların veritabanına loglanması.
 
