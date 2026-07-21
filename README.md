@@ -63,7 +63,7 @@ Servislerle etkileşime geçmek, arayüzlerine ulaşmak ve hata ayıklamak için
 
 Aşağıdaki liste, laboratuvarın geri kalan kısımları için (Phase 2 & Phase 3 Red/Blue Team senaryoları dahil) ekibin görev dağılımını içermektedir:
 
-- **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, Redis Rate-Limiting mantığının entegrasyonu, Phase 3 Active-Response (iptables playbook) senaryolarının uygulanması, günlük raporlamalar ve projenin nihai mimari dokümantasyonunun hazırlanması.
+- **Bedirhan İhtiyar (Kaptan)**: Wazuh ajanlarının entegrasyonu, Redis Rate-Limiting mantığının entegrasyonu, Phase 3 Active-Response (iptables playbook) senaryolarının uygulanması.
 
 - **Yağız Eren Kotan**: FastAPI (Policy Engine) uç noktalarının geliştirilmesi, PostgreSQL entegrasyonu ve dinamik kural motoru (rule engine) mantığının kurgulanması.
 
