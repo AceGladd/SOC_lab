@@ -172,9 +172,15 @@ networks:
   dmz_net:
     name: dmz_net
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
   internal_net:
     name: internal_net
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.20.0/24
 
 volumes:
   postgres_data:
