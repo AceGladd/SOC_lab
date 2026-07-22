@@ -1,0 +1,326 @@
+================================================================================
+   SOC LAB PROJESİ – DEVRAN BAŞTEMUR GÖREV RAPORU
+   Teslim Tarihi: 26.07.2026
+================================================================================
+
+
+================================================================================
+1. PROJE GENEL BAKIŞ
+================================================================================
+
+Bu proje, Docker Compose üzerinde çalışan, segmente edilmiş bir Ağ Erişim
+Kontrolü (NAC) ve Güvenlik Operasyon Merkezi (SOC) laboratuvarıdır.
+
+Altyapı iki izole ağdan oluşur:
+  • DMZ (dmz_net)      : OpenVPN Gateway, sahte kurumsal web servisi
+  • İç Ağ (internal_net): FreeRADIUS, PostgreSQL, Redis, FastAPI, Wazuh SIEM
+
+Kimlik doğrulama akışı:
+  Kullanıcı → OpenVPN / EAP-TLS → FreeRADIUS (rlm_rest) → Policy Engine (FastAPI)
+           → PostgreSQL (kullanıcı sorgu + log) → Redis (rate-limit)
+           → FreeRADIUS'a karar (VLAN + profil) → Kullanıcıya erişim açılır/kapatılır
+
+================================================================================
+2. GÖREV TANIMIM
+================================================================================
+
+  • FastAPI (Policy Engine) uç noktalarının geliştirilmesi
+  • PostgreSQL entegrasyonu
+  • Dinamik kural motoru (rule engine) mantığının kurgulanarak
+    FreeRADIUS'a uygun VLAN/erişim profili dönülmesi
+  • Bu kararların veritabanına loglanması
+
+================================================================================
+3. YAPILAN DEĞİŞİKLİKLER VE EKLENDİ – DOSYA BAZLI
+================================================================================
+
+--- policy_engine/main.py (TAMAMEN YENİDEN YAZILDI) ---
+
+Mevcut halde bu dosya yalnızca basit bir rate-limit demo'suydu:
+  GET  /        → "Policy Engine OK"
+  POST /login   → Rate-limit test
+
+Yapılanlar:
+
+  a) Ana Yetkilendirme Endpoint'i: POST /authorize
+     ─────────────────────────────────────────────
+     FreeRADIUS'un rlm_rest modülü bu adrese POST isteği atar.
+     İstek body'si (JSON):
+       {
+         "username": "alice",
+         "password": "...",       ← EAP-TLS'de olmayabilir
+         "nas_ip": "10.0.0.1",
+         "called_station_id": "..."
+       }
+
+     Yanıt (JSON):
+       {
+         "decision": "ACCEPT",
+         "vlan": 20,
+         "profile": "limited_access",
+         "reply_message": "Employee Access Granted"
+       }
+
+  b) Dinamik Kural Motoru (evaluate_policy fonksiyonu)
+     ────────────────────────────────────────────────
+     Kullanıcının rolüne ve hesap aktiflik durumuna göre karar verir:
+
+       ROL          VLAN   PROFİL           KARAR
+       ────────     ────   ─────────────    ──────
+       admin        10     full_access      ACCEPT
+       employee     20     limited_access   ACCEPT
+       guest        30     internet_only    ACCEPT
+       bilinmeyen   —      —                REJECT
+       devre dışı   —      —                REJECT
+
+     Kural zinciri:
+       1. Hesap active=False → REJECT (devre dışı hesap)
+       2. Rol ROLE_POLICY'de tanımlı değil → REJECT (bilinmeyen rol)
+       3. Aksi halde → ACCEPT + VLAN + profil ata
+
+  c) PostgreSQL Entegrasyonu
+     ────────────────────────
+     db_get_user(username)  : users tablosundan kullanıcıyı çeker
+     db_log_access(...)     : Her karar access_logs tablosuna yazılır
+
+     Bağlantı parametreleri .env dosyasından okunur:
+       POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
+       POSTGRES_USER, POSTGRES_PASSWORD
+
+  d) Redis Rate-Limiting
+     ────────────────────
+     is_rate_limited(ip)       : IP'nin blok eşiğini aşıp aşmadığını kontrol eder
+     record_failed_attempt(ip) : Başarısız her denemede Redis sayacı artırır
+     reset_failed_attempts(ip) : Başarılı girişte sayaç sıfırlanır
+
+     Değişkenler .env'den okunur:
+       RATE_LIMIT  = 5 (varsayılan; 5 başarısız deneme sonrası blok)
+       RATE_WINDOW = 60 (saniye; pencere süresi)
+
+  e) Yapılandırılmış JSON Loglama (write_log fonksiyonu)
+     ────────────────────────────────────────────────────
+     Her karar /var/log/shared/policy_engine.log dosyasına JSON satırı olarak yazılır.
+     Wazuh Agent bu dosyayı izler ve Wazuh Manager'a iletir.
+
+     Log alanları:
+       timestamp, app, event, username, srcip, decision, vlan, detail
+
+     Olası event değerleri:
+       AUTH_SUCCESS        → Başarılı yetkilendirme
+       AUTH_FAILURE        → Reddedilen yetkilendirme
+       RATE_LIMIT_BLOCKED  → IP rate-limiter tarafından engellendi
+
+  f) Yardımcı / Debug Endpoint'leri
+     ─────────────────────────────────
+     GET  /users/{username} → Kullanıcı kaydını döndürür (test amaçlı)
+     GET  /logs?limit=50    → Son erişim loglarını listeler
+     GET  /                 → Sağlık kontrolü
+     POST /login            → Orijinal endpoint korundu (geriye dönük uyumluluk)
+
+--- policy_engine/db_init.sql (YENİ DOSYA) ---
+
+PostgreSQL konteynerinin ilk başlamasında otomatik çalışır.
+(docker-entrypoint-initdb.d/ mekanizması)
+
+Oluşturulan tablolar:
+
+  users tablosu:
+    id, username (UNIQUE), role, active (boolean), created_at
+    Kısıtlama: role IN ('admin', 'employee', 'guest')
+
+  access_logs tablosu:
+    id, username, src_ip, decision, vlan, detail, created_at
+    İndeksler: username, src_ip, created_at üzerinde performans indeksleri
+
+  Örnek kullanıcılar (lab ortamı için):
+    admin        → role: admin,    active: true
+    alice        → role: employee, active: true
+    bob          → role: employee, active: true
+    charlie      → role: guest,    active: true
+    disabled_usr → role: employee, active: false  (REJECT senaryosu)
+
+--- policy_engine/Dockerfile (GÜNCELLENDİ) ---
+
+Sabitlenmiş (pinned) paket versiyonları kullanılarak güvenlik artırıldı:
+  fastapi==0.111.0
+  uvicorn==0.29.0
+  psycopg2-binary==2.9.9
+  redis==5.0.4
+  pydantic==2.7.1
+
+--- docker-compose.yml (GÜNCELLENDİ) ---
+
+db_postgres servisine yeni volume satırı eklendi:
+  - ./policy_engine/db_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+
+Bu sayede konteyner ilk ayağa kalktığında şema ve örnek veriler
+otomatik olarak oluşturulur; manuel SQL çalıştırmaya gerek kalmaz.
+
+--- .env (YENİ DOSYA) ---
+
+Tüm ortam değişkenleri tek noktada toplandı.
+Policy Engine bu değişkenleri okur:
+  POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_HOST, POSTGRES_PORT
+  REDIS_PASSWORD, REDIS_HOST, REDIS_PORT
+  RATE_LIMIT, RATE_WINDOW
+
+--- wazuh_custom_rules/local_rules.xml (GENİŞLETİLDİ) ---
+
+Yeni log event tiplerini kapsayan kurallar eklendi:
+
+  Kural 100010 (seviye 3)  : AUTH_SUCCESS  – başarılı yetkilendirme
+  Kural 100020 (seviye 5)  : AUTH_FAILURE  – tek başarısız deneme
+  Kural 100021 (seviye 10) : Brute-Force   – 60s içinde 4+ AUTH_FAILURE (aynı IP)
+  Kural 100030 (seviye 12) : RATE_LIMIT_BLOCKED – IP engellendi
+                             Alarm mesajı: "KRİTİK AĞ İHLALİ: Certificate Spoofing /
+                             Brute-Force / Unauthorized Access"
+  Kural 100040 (seviye 8)  : Devre dışı hesap erişim denemesi
+  Kural 100050 (seviye 7)  : Veritabanında kayıtsız kullanıcı denemesi
+  Kural 100002-100003      : Orijinal kurallar korundu (geriye dönük uyumluluk)
+
+================================================================================
+4. VERİ AKIŞI – UÇTAN UCA
+================================================================================
+
+  [1] Kullanıcı OpenVPN / EAP-TLS ile bağlanmaya çalışır
+          │
+  [2] FreeRADIUS isteği alır, rlm_rest modülü devreye girer
+      → POST http://policy_engine:8000/authorize
+          │
+  [3] Policy Engine:
+      ├── Redis: IP bloklu mu? → Bloksa 429 döner, Wazuh logu yazar
+      ├── PostgreSQL: Kullanıcı var mı, rolü ne, aktif mi?
+      ├── Kural Motoru: VLAN + profil belirle
+      ├── Redis: Başarısız denemeyse sayacı artır / başarılıysa sıfırla
+      ├── /var/log/shared/policy_engine.log → JSON log yaz
+      └── PostgreSQL access_logs → kaydı sakla
+          │
+  [4] FreeRADIUS'a yanıt:
+      { "decision": "ACCEPT", "vlan": 20, "profile": "limited_access" }
+          │
+  [5] Wazuh Agent (wazuh_agent_dmz) log dosyasını izler
+      → Wazuh Manager'a iletir
+      → Alarm kuralları tetiklenir
+      → Wazuh Dashboard'da alert görünür
+          │
+  [6] (Brute-Force / Rate-Limit tetiklenirse)
+      → Wazuh Active-Response → firewall-drop komutu → IP engellenir
+
+================================================================================
+5. NASIL TEST EDİLİR
+================================================================================
+
+  a) Altyapıyı Ayağa Kaldır
+     ─────────────────────────
+     docker compose up -d --build
+
+     (İlk kez çalıştırılıyorsa PostgreSQL tabloları otomatik oluşur.)
+
+  b) Policy Engine Sağlık Kontrolü
+     ─────────────────────────────
+     docker exec -it policy_engine curl http://localhost:8000/
+     # Beklenen: {"status":"ok","service":"policy_engine"}
+
+  c) Yetkilendirme Testi – ACCEPT (employee kullanıcısı)
+     ────────────────────────────────────────────────────
+     docker exec -it policy_engine \
+       curl -s -X POST http://localhost:8000/authorize \
+       -H "Content-Type: application/json" \
+       -d '{"username":"alice","password":"test123"}'
+
+     Beklenen yanıt:
+     {
+       "decision": "ACCEPT",
+       "vlan": 20,
+       "profile": "limited_access",
+       "reply_message": "Employee Access Granted"
+     }
+
+  d) Yetkilendirme Testi – REJECT (bilinmeyen kullanıcı)
+     ────────────────────────────────────────────────────
+     docker exec -it policy_engine \
+       curl -s -X POST http://localhost:8000/authorize \
+       -H "Content-Type: application/json" \
+       -d '{"username":"hacker","password":"wrongpass"}'
+
+     Beklenen yanıt:
+     {
+       "decision": "REJECT",
+       "reply_message": "User 'hacker' not found in database."
+     }
+
+  e) Yetkilendirme Testi – REJECT (devre dışı hesap)
+     ──────────────────────────────────────────────────
+     docker exec -it policy_engine \
+       curl -s -X POST http://localhost:8000/authorize \
+       -H "Content-Type: application/json" \
+       -d '{"username":"disabled_usr","password":"anypass"}'
+
+     Beklenen yanıt:
+     {
+       "decision": "REJECT",
+       "reply_message": "Account 'disabled_usr' is disabled."
+     }
+
+  f) Brute-Force / Rate-Limit Testi
+     ───────────────────────────────
+     5 kez üst üste geçersiz istek at, 6. istekte 429 alınmalı:
+
+     for i in 1 2 3 4 5 6; do
+       docker exec policy_engine \
+         curl -s -X POST http://localhost:8000/authorize \
+         -H "Content-Type: application/json" \
+         -d '{"username":"ghost","password":"x"}'; echo
+     done
+
+     6. istekte beklenen: HTTP 429 – "Too many requests. Temporarily blocked."
+     Wazuh'da: Kural 100030 tetiklenir (seviye 12 alarm).
+
+  g) Erişim Loglarını Görüntüle
+     ───────────────────────────
+     docker exec -it policy_engine \
+       curl http://localhost:8000/logs?limit=10
+
+  h) PostgreSQL'de Direkt Sorgu
+     ───────────────────────────
+     docker exec -it db_postgres \
+       psql -U nac_admin -d nac_db -c "SELECT * FROM access_logs ORDER BY created_at DESC LIMIT 10;"
+
+  i) Log Dosyasını İzle (Wazuh akışı)
+     ────────────────────────────────
+     docker exec -it wazuh_agent_dmz \
+       tail -f /var/log/shared/policy_engine.log
+
+================================================================================
+6. DOSYA YAPISI (Bu görev kapsamında ilgili dosyalar)
+================================================================================
+
+SOC_lab-main/
+├── .env                                ← YENİ: Ortam değişkenleri
+├── docker-compose.yml                  ← GÜNCELLENDİ: db_init.sql mount eklendi
+├── policy_engine/
+│   ├── main.py                         ← TAMAMEN YENİDEN YAZILDI
+│   ├── db_init.sql                     ← YENİ: PostgreSQL şema + örnek veriler
+│   └── Dockerfile                      ← GÜNCELLENDİ: Sabitlenmiş versiyonlar
+└── wazuh_custom_rules/
+    └── local_rules.xml                 ← GENİŞLETİLDİ: Yeni alarm kuralları
+
+================================================================================
+7. NOTLAR VE BAĞIMLILIKLAR
+================================================================================
+
+  • Policy Engine yalnızca internal_net üzerindedir; host'tan doğrudan erişilemez.
+    Test için: docker exec -it policy_engine curl http://localhost:8000/...
+
+  • FreeRADIUS rlm_rest yapılandırması (Ömer Faruk'un görevi):
+    authorize_url ayarı → http://policy_engine:8000/authorize olmalıdır.
+
+  • Wazuh aktif-yanıt (firewall-drop) ve SIEM alarm kuralları (Bedirhan'ın görevi)
+    bu motor tarafından üretilen loglara dayanmaktadır.
+
+  • PostgreSQL tabloları yalnızca konteyner ilk kez oluşturulduğunda init olur.
+    Temiz başlangıç için: docker compose down -v && docker compose up -d --build
+
+  • .env dosyası .gitignore'a eklenmelidir (hassas bilgiler içerir).
+
+

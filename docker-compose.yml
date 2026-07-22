@@ -1,0 +1,195 @@
+services:
+  db_postgres:
+    image: postgres:15
+    container_name: db_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nac_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nac_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nac_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # İlk başlatmada şema + örnek kullanıcıları otomatik oluşturur
+      - ./policy_engine/db_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks:
+      - internal_net
+
+  cache_redis:
+    image: redis:7-alpine
+    container_name: cache_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secure_password}
+    networks:
+      - internal_net
+
+  vpn_gateway:
+    image: kylemanna/openvpn
+    container_name: vpn_gateway
+    restart: unless-stopped
+    ports:
+      - "1194:1194/udp"
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - vpn_data:/etc/openvpn
+      - shared_logs:/var/log/shared
+    networks:
+      - dmz_net
+      - internal_net
+
+  radius_server:
+    image: freeradius/freeradius-server:latest
+    container_name: radius_server
+    restart: unless-stopped
+    depends_on:
+      - db_postgres
+    volumes:
+      - ./radius_config:/etc/freeradius
+      - shared_logs:/var/log/freeradius
+    networks:
+      - dmz_net
+      - internal_net
+
+  policy_engine:
+    build:
+      context: ./policy_engine
+    container_name: policy_engine
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - db_postgres
+      - cache_redis
+    volumes:
+      - shared_logs:/var/log/shared
+    networks:
+      - internal_net
+
+  wazuh_manager:
+    image: wazuh/wazuh-manager:4.14.6
+    container_name: wazuh_manager
+    restart: unless-stopped
+    ports:
+      - "1514:1514"
+      - "1515:1515"
+      - "514:514/udp"
+      - "55000:55000"
+    environment:
+      - INDEXER_URL="https://wazuh.indexer:9200"
+      - INDEXER_USERNAME=admin
+      - INDEXER_PASSWORD=SecretPassword
+      - FILEBEAT_SSL_VERIFICATION_MODE=none
+      - SSL_CERTIFICATE_AUTHORITIES=/etc/ssl/root-ca.pem
+      - SSL_CERTIFICATE=/etc/ssl/filebeat.pem
+      - SSL_KEY=/etc/ssl/filebeat.key
+      - API_USERNAME=wazuh-wui
+      - API_PASSWORD=MyS3cr37P450r.*-
+    volumes:
+      - wazuh_data:/var/ossec/data
+      - wazuh_etc:/var/ossec/etc
+      - wazuh_logs:/var/ossec/logs
+      - ./wazuh_custom_rules:/var/ossec/etc/rules
+      - ./config/wazuh_indexer_ssl_certs/root-ca-manager.pem:/etc/ssl/root-ca.pem
+      - ./config/wazuh_indexer_ssl_certs/wazuh.manager.pem:/etc/ssl/filebeat.pem
+      - ./config/wazuh_indexer_ssl_certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key
+    networks:
+      internal_net:
+        aliases:
+          - wazuh.manager
+
+  wazuh.indexer:
+    image: wazuh/wazuh-indexer:4.14.6
+    hostname: wazuh.indexer
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+    environment:
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - wazuh-indexer-data:/var/lib/wazuh-indexer
+      - ./config/wazuh_indexer_ssl_certs/root-ca.pem:/usr/share/wazuh-indexer/config/certs/root-ca.pem
+      - ./config/wazuh_indexer_ssl_certs/wazuh.indexer-key.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.key
+      - ./config/wazuh_indexer_ssl_certs/wazuh.indexer.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.pem
+      - ./config/wazuh_indexer_ssl_certs/admin.pem:/usr/share/wazuh-indexer/config/certs/admin.pem
+      - ./config/wazuh_indexer_ssl_certs/admin-key.pem:/usr/share/wazuh-indexer/config/certs/admin-key.pem
+      - ./config/opensearch.yml:/usr/share/wazuh-indexer/config/opensearch.yml
+      - ./config/internal_users.yml:/usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml
+    networks:
+      - internal_net
+
+  wazuh.dashboard:
+    image: wazuh/wazuh-dashboard:4.14.6
+    hostname: wazuh.dashboard
+    restart: unless-stopped
+    ports:
+      - "443:5601"
+    environment:
+      - INDEXER_USERNAME=admin
+      - INDEXER_PASSWORD=SecretPassword
+      - WAZUH_API_URL=https://wazuh_manager
+      - DASHBOARD_USERNAME=kibanaserver
+      - DASHBOARD_PASSWORD=kibanaserver
+      - API_USERNAME=wazuh-wui
+      - API_PASSWORD=MyS3cr37P450r.*-
+    volumes:
+      - ./config/wazuh_indexer_ssl_certs/wazuh.dashboard.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard.pem
+      - ./config/wazuh_indexer_ssl_certs/wazuh.dashboard-key.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard-key.pem
+      - ./config/wazuh_indexer_ssl_certs/root-ca.pem:/usr/share/wazuh-dashboard/certs/root-ca.pem
+      - ./config/opensearch_dashboards.yml:/usr/share/wazuh-dashboard/config/opensearch_dashboards.yml
+      - ./config/wazuh.yml:/usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml
+    networks:
+      - internal_net
+
+  wazuh_agent_dmz:
+    image: wazuh/wazuh-agent:4.14.6
+    container_name: wazuh_agent_dmz
+    restart: unless-stopped
+    environment:
+      - WAZUH_MANAGER=wazuh_manager
+      - WAZUH_ENROLLMENT_SERVER=wazuh_manager
+    volumes:
+      - shared_logs:/var/log/shared
+    networks:
+      - dmz_net
+      - internal_net
+
+  dummy_web:
+    build:
+      context: ./dummy_web
+    container_name: dummy_web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - dmz_net
+      - internal_net
+
+networks:
+  dmz_net:
+    name: dmz_net
+    driver: bridge
+  internal_net:
+    name: internal_net
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: postgres_data
+  vpn_data:
+    name: vpn_data
+  wazuh_data:
+    name: wazuh_data
+  wazuh_etc:
+    name: wazuh_etc
+  wazuh_logs:
+    name: wazuh_logs
+  shared_logs:
+    name: shared_logs
+  wazuh-indexer-data:
+    name: wazuh-indexer-data
