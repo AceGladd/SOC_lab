@@ -1,0 +1,20 @@
+rest {
+    connect_uri = "http://policy_engine:8000"
+    connect_timeout = 3.0
+
+    tls {
+        check_cert = no
+    }
+
+    authorize {
+        uri = "${..connect_uri}/authorize"
+        method = 'post'
+        body = 'json'
+
+        data = '{
+            "username": "%{TLS-Client-Cert-Common-Name}"
+        }'
+
+        tls = ${..tls}
+    }
+}
