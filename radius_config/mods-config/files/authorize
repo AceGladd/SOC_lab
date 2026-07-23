@@ -204,3 +204,8 @@ DEFAULT	Hint == "SLIP"
 # See the example user "bob" above.                     #
 #########################################################
 
+testuser Cleartext-Password := "Test1234!"
+    Tunnel-Type = VLAN,
+    Tunnel-Medium-Type = IEEE-802,
+    Tunnel-Private-Group-Id = "20",
+    Reply-Message = "Access granted - employee"
