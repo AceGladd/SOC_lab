@@ -462,6 +462,7 @@ authorize {
 		ok = return
 #		updated = return
 	}
+	rest
 
 	#
 	#  Pull crypt'd passwords from /etc/passwd or /etc/shadow,
@@ -810,6 +811,11 @@ session {
 #  Once we KNOW that the user has been authenticated, there are
 #  additional steps we can take.
 post-auth {
+	update reply {
+		Tunnel-Type := VLAN
+		Tunnel-Medium-Type := IEEE-802
+		Tunnel-Private-Group-Id := "%{rest:vlan}"
+	}
 	#
 	#  If you need to have a State attribute, you can
 	#  add it here.  e.g. for later CoA-Request with

@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-nac_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./policy_engine/db_init.sql:/docker-entrypoint-initdb.d/db_init.sql
     networks:
       - internal_net
 
