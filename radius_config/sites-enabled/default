@@ -810,6 +810,32 @@ session {
 #  Once we KNOW that the user has been authenticated, there are
 #  additional steps we can take.
 post-auth {
+	rest
+
+	if ((ok || updated) && ("%{reply:REST-HTTP-Body}" =~ /"decision"\s*:\s*"ACCEPT"/)) {
+		if ("%{reply:REST-HTTP-Body}" =~ /"vlan"\s*:\s*([0-9]+)/) {
+			update reply {
+				Tunnel-Type := VLAN
+				Tunnel-Medium-Type := IEEE-802
+				Tunnel-Private-Group-Id := "%{1}"
+			}
+		}
+		else {
+			reject
+		}
+	}
+	else {
+		if ("%{reply:REST-HTTP-Body}" =~ /"reply_message"\s*:\s*"([^"]*)"/) {
+			update reply {
+				&Reply-Message := "%{1}"
+			}
+		}
+		reject
+	}
+
+	update reply {
+		&REST-HTTP-Body !* ANY
+	}
 	#
 	#  If you need to have a State attribute, you can
 	#  add it here.  e.g. for later CoA-Request with

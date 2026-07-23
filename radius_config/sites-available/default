@@ -462,7 +462,6 @@ authorize {
 		ok = return
 #		updated = return
 	}
-	rest
 
 	#
 	#  Pull crypt'd passwords from /etc/passwd or /etc/shadow,
@@ -811,6 +810,7 @@ session {
 #  Once we KNOW that the user has been authenticated, there are
 #  additional steps we can take.
 post-auth {
+	rest
 	update reply {
 		Tunnel-Type := VLAN
 		Tunnel-Medium-Type := IEEE-802
