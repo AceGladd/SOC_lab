@@ -1,0 +1,107 @@
+services:
+  vpn_initializer:
+    build:
+      context: .
+    image: soc-lab/openvpn-gateway:local
+    container_name: vpn_initializer
+    environment:
+      VPN_SERVER_ADDRESS: ${VPN_SERVER_ADDRESS:-localhost}
+      VPN_PORT: ${VPN_PORT:-1194}
+    entrypoint: ["/usr/local/bin/initialize-openvpn.sh"]
+    volumes:
+      - vpn_data:/etc/openvpn
+    restart: "no"
+
+  vpn_client_create:
+    profiles: ["tools"]
+    build:
+      context: .
+    image: soc-lab/openvpn-gateway:local
+    entrypoint: ["/usr/local/bin/create-secure-client.sh"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - vpn_data:/etc/openvpn
+      - ./client_profiles:/profiles
+    restart: "no"
+
+  vpn_client_revoke:
+    profiles: ["tools"]
+    build:
+      context: .
+    image: soc-lab/openvpn-gateway:local
+    entrypoint: ["/usr/local/bin/revoke-client.sh"]
+    volumes:
+      - vpn_data:/etc/openvpn
+    restart: "no"
+
+  vpn_client_export:
+    profiles: ["tools"]
+    build:
+      context: .
+    image: soc-lab/openvpn-gateway:local
+    entrypoint: ["/usr/local/bin/export-client-profile.sh"]
+    volumes:
+      - vpn_data:/etc/openvpn
+      - ./client_profiles:/profiles
+    restart: "no"
+
+  vpn_gateway:
+    build:
+      context: .
+    image: soc-lab/openvpn-gateway:local
+    container_name: vpn_gateway
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/start-gateway.sh"]
+    environment:
+      RADIUS_ENABLED: "false"
+    depends_on:
+      vpn_initializer:
+        condition: service_completed_successfully
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - vpn_data:/etc/openvpn
+      - shared_logs:/var/log/shared
+    networks:
+      - dmz_net
+      - internal_net
+
+  dmz_test_web:
+    build:
+      context: ../dummy_web
+    container_name: dmz_test_web
+    restart: unless-stopped
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.10.10
+
+  internal_test_service:
+    image: nginx:alpine
+    container_name: internal_test_service
+    restart: unless-stopped
+    networks:
+      internal_net:
+        ipv4_address: 10.10.20.10
+
+networks:
+  dmz_net:
+    name: dmz_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+  internal_net:
+    name: internal_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.20.0/24
+
+volumes:
+  vpn_data:
+    name: vpn_data
+  shared_logs:
+    name: shared_logs

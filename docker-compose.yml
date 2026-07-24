@@ -20,10 +20,38 @@ services:
     networks:
       - internal_net
 
+  vpn_initializer:
+    build:
+      context: ./openvpn_gateway
+    image: soc-lab/openvpn-gateway:local
+    container_name: vpn_initializer
+    environment:
+      VPN_SERVER_ADDRESS: ${VPN_SERVER_ADDRESS:-localhost}
+      VPN_PORT: ${VPN_PORT:-1194}
+    entrypoint: ["/usr/local/bin/initialize-openvpn.sh"]
+    volumes:
+      - vpn_data:/etc/openvpn
+    restart: "no"
+
   vpn_gateway:
-    image: kylemanna/openvpn
+    build:
+      context: ./openvpn_gateway
+    image: soc-lab/openvpn-gateway:local
     container_name: vpn_gateway
     restart: unless-stopped
+    entrypoint: ["/usr/local/bin/start-gateway.sh"]
+    environment:
+      RADIUS_ENABLED: "true"
+      RADIUS_SERVER: radius_server
+      RADIUS_AUTH_PORT: "1812"
+      RADIUS_NAS_IP: 10.10.20.250
+      RADIUS_SHARED_SECRET: "Altay@2026"
+      RADIUS_TIMEOUT: "3"
+    depends_on:
+      vpn_initializer:
+        condition: service_completed_successfully
+      radius_server:
+        condition: service_started
     ports:
       - "1194:1194/udp"
     cap_add:
@@ -32,8 +60,9 @@ services:
       - vpn_data:/etc/openvpn
       - shared_logs:/var/log/shared
     networks:
-      - dmz_net
-      - internal_net
+      dmz_net:
+      internal_net:
+        ipv4_address: 10.10.20.250
 
   radius_server:
     image: freeradius/freeradius-server:latest
@@ -53,7 +82,9 @@ services:
       context: ./policy_engine
     container_name: policy_engine
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     depends_on:
       - db_postgres
       - cache_redis
@@ -166,7 +197,6 @@ services:
       - "8080:8080"
     networks:
       - dmz_net
-      - internal_net
 
 networks:
   dmz_net:
